@@ -58,7 +58,7 @@ header.top small{display:block;color:var(--muted);font-size:12px}
 .pending{font-size:11px;color:var(--muted);text-align:center}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:var(--safe-b);z-index:5}
 nav.tabs .in{display:flex;max-width:720px;width:100%}
-nav.tabs button{flex:1;border:0;background:none;padding:9px 2px 10px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+nav.tabs button{flex:1;min-width:0;border:0;background:none;padding:9px 1px 10px;font-size:10.5px;font-weight:600;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
 nav.tabs button svg{width:22px;height:22px}
 nav.tabs button.on{color:var(--accent)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow)}
@@ -131,6 +131,7 @@ body.invmode .inv-sticky{bottom:calc(12px + var(--safe-b))!important}
   <button data-tab="inventaire"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4h6v3H9zM6 5h3M15 5h3v16H6V5"/><path d="m9 13 2 2 4-4"/></svg>Inventaire</button>
   <button data-tab="bilan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Bilan</button>
   <button data-tab="historique"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Historique</button>
+  <button data-tab="commandes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>Commandes</button>
   <button data-tab="reglages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Réglages</button>
 </div></nav>
 
@@ -148,7 +149,8 @@ const S = {
   pending:{}, // produitId -> {delta, timer}
   inv:{},     // produitId -> compté (string)
   loaded:{produits:false},
-  invMode:false
+  invMode:false,
+  commandes:[], loadedCmd:false
 };
 const TYPES = {
   vente:{label:"Vente", sign:-1},
@@ -222,7 +224,7 @@ async function appliquer(pid, type, delta, opts={}){
     const p = snap.data();
     await retry(()=>S.db.collection("mouvements").add({
       produitId:pid, produitNom:p.nom || "", type, qte:reel, avant:cur, apres,
-      prix: num(p.prixVente), matchId: S.config.matchActifId || "", par:S.uid || "", parNom:S.nom || "", date:Date.now(), note:opts.note || ""
+      prix: num(p.prixVente), matchId: S.config.matchActifId || "", par:S.uid || "", parNom:S.nom || "", date:Date.now(), note:opts.note || "", commandeId:opts.commandeId || ""
     }));
   }).catch(handleWriteError);
 }
@@ -298,14 +300,18 @@ function sheetEditProduit(pid){
     contenant: el("input",{class:"inp",value:p.contenant||"",placeholder:"ex : Canette, Bouteille, Fût",list:"conts"}),
     stock: el("input",{class:"inp",type:"number",inputmode:"decimal",min:"0",value:num(p.stock)}),
     seuil: el("input",{class:"inp",type:"number",inputmode:"decimal",min:"0",value:num(p.seuil)}),
-    prix: el("input",{class:"inp",type:"number",inputmode:"decimal",min:"0",step:"0.1",value:num(p.prixVente)||""})
+    prix: el("input",{class:"inp",type:"number",inputmode:"decimal",min:"0",step:"0.1",value:num(p.prixVente)||""}),
+    parColis: el("input",{class:"inp",type:"number",inputmode:"numeric",min:"1",step:"1",value:num(p.parColis)||1}),
+    prixAchat: el("input",{class:"inp",type:"number",inputmode:"decimal",min:"0",step:"0.01",value:num(p.prixAchat)||""}),
+    fournisseur: el("input",{class:"inp",value:p.fournisseur||"",placeholder:"ex : Metro",list:"fourns"})
   };
   const dl1 = el("datalist",{id:"cats"}, categories().map(c=>el("option",{value:c})));
+  const dl3 = el("datalist",{id:"fourns"}, fournisseurs().map(c=>el("option",{value:c})));
   const dl2 = el("datalist",{id:"conts"}, ["Canette","Bouteille","Brique","Fût","Verre","Dosette","Carton"].map(c=>el("option",{value:c})));
   const save = async () => {
     const nom = f.nom.value.trim(); if (!nom) { toast("Donne un nom"); return; }
     if (S.readOnly) { toast("Lecture seule"); return; }
-    const body = { nom, categorie:f.categorie.value.trim()||"Divers", contenant:f.contenant.value.trim(), seuil:num(f.seuil.value), prixVente:num(f.prix.value), maj:Date.now() };
+    const body = { nom, categorie:f.categorie.value.trim()||"Divers", contenant:f.contenant.value.trim(), seuil:num(f.seuil.value), prixVente:num(f.prix.value), parColis:Math.max(1,Math.round(num(f.parColis.value))||1), prixAchat:num(f.prixAchat.value), fournisseur:f.fournisseur.value.trim(), maj:Date.now() };
     closeSheet();
     try {
       if (pid) {
@@ -327,7 +333,7 @@ function sheetEditProduit(pid){
     closeSheet();
     try { await chain("p/"+pid, ()=>retry(()=>S.db.doc("produits/"+pid).update({archive:!p.archive, maj:Date.now()}))); toast(p.archive?"Produit réactivé":"Produit retiré de la liste"); } catch(e){ handleWriteError(e); }
   };
-  openSheet(el("div",{}, dl1, dl2,
+  openSheet(el("div",{}, dl1, dl2, dl3,
     el("h3",{}, pid ? "Modifier le produit" : "Nouveau produit"),
     el("label",{class:"f"},"Nom"), f.nom,
     el("div",{class:"row"}, el("div",{style:"flex:1"}, el("label",{class:"f"},"Catégorie"), f.categorie), el("div",{style:"flex:1"}, el("label",{class:"f"},"Contenant"), f.contenant)),
@@ -335,6 +341,10 @@ function sheetEditProduit(pid){
       el("div",{style:"flex:1"}, el("label",{class:"f"}, pid?"Stock actuel":"Stock de départ"), f.stock),
       el("div",{style:"flex:1"}, el("label",{class:"f"},"Alerte si ≤"), f.seuil),
       el("div",{style:"flex:1"}, el("label",{class:"f"},"Prix vente €"), f.prix)),
+    el("div",{class:"row"},
+      el("div",{style:"flex:1"}, el("label",{class:"f"},"Unités / colis"), f.parColis),
+      el("div",{style:"flex:1"}, el("label",{class:"f"},"Prix achat € /u"), f.prixAchat),
+      el("div",{style:"flex:1.4"}, el("label",{class:"f"},"Fournisseur"), f.fournisseur)),
     el("button",{class:"btn pri block",style:"margin-top:14px",onclick:save}, pid?"Enregistrer":"Ajouter"),
     pid ? el("button",{class:"btn block",style:"margin-top:8px",onclick:archiver}, p.archive?"Réactiver ce produit":"Retirer ce produit de la liste") : null,
     el("button",{class:"btn block",style:"margin-top:8px;background:none",onclick:closeSheet},"Annuler")
@@ -592,6 +602,164 @@ function vReglages(){
   return out;
 }
 
+// ---------- commandes ----------
+const STATUTS = {en_cours:"Commandée", partielle:"Reçue en partie", recue:"Reçue", annulee:"Annulée"};
+const fournisseurs = () => [...new Set([...S.produits.map(p=>p.fournisseur), ...S.commandes.map(c=>c.fournisseur)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"fr"));
+const dateFr = d => d ? d.split("-").reverse().join("/") : "";
+const ligneTxt = l => (l.parColis>1 ? fmt(l.colis)+" colis ×"+l.parColis+" ("+fmt(l.qte)+" u)" : fmt(l.qte)+" u");
+const coutCmd = c => (c.lignes||[]).reduce((t,l)=>t+num(l.qte)*num(l.prixAchat),0);
+
+function suggestion(p){
+  const pc = Math.max(1, num(p.parColis)||1);
+  const cible = Math.max(num(p.seuil)*2, num(p.seuil)+pc);
+  const manque = Math.max(cible - num(p.stock), 1);
+  return Math.ceil(manque/pc);
+}
+function sheetCommande(cid, prefill){
+  const c = cid ? S.commandes.find(x=>x.id===cid) : {fournisseur:"", date:today(), note:"", lignes:prefill||[]};
+  if (!c) return;
+  let lignes = (c.lignes||[]).map(l=>({...l}));
+  if (!cid && !c.fournisseur && lignes.length) {
+    const cnt = {}; lignes.forEach(l=>{ const f=produit(l.produitId)?.fournisseur; if(f) cnt[f]=(cnt[f]||0)+1; });
+    c.fournisseur = Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0] || "";
+  }
+  const four = el("input",{class:"inp",value:c.fournisseur||"",placeholder:"ex : Metro, Boissons du Var…",list:"fourns2"});
+  const date = el("input",{class:"inp",type:"date",value:c.date||today()});
+  const note = el("input",{class:"inp",value:c.note||"",placeholder:"Optionnel (n° de bon, livraison prévue…)"});
+  const box = el("div",{});
+  const total = el("div",{class:"muted",style:"text-align:right;margin-top:6px;font-size:13px"});
+  const pick = el("select",{class:"inp"});
+  function majPick(){
+    const deja = new Set(lignes.map(l=>l.produitId));
+    const dispo = actifs().filter(p=>!deja.has(p.id)).sort((a,b)=>a.nom.localeCompare(b.nom,"fr"));
+    pick.replaceChildren(el("option",{value:""},"+ Ajouter un produit…"), ...dispo.map(p=>el("option",{value:p.id}, p.nom+(p.fournisseur?" · "+p.fournisseur:""))));
+  }
+  pick.onchange = () => {
+    const p = produit(pick.value); if (!p) return;
+    const pc = Math.max(1,num(p.parColis)||1);
+    lignes.push({produitId:p.id, nom:p.nom, parColis:pc, colis:1, qte:pc, recu:0, prixAchat:num(p.prixAchat)});
+    if (!four.value.trim() && p.fournisseur) four.value = p.fournisseur;
+    draw();
+  };
+  function draw(){
+    box.replaceChildren();
+    if (!lignes.length) box.append(el("p",{class:"muted",style:"margin:8px 0"},"Aucun produit dans la commande."));
+    lignes.forEach((l,i) => {
+      const inp = el("input",{class:"inv-in",type:"number",inputmode:"numeric",min:"0",value:l.colis});
+      const info = el("div",{class:"sub"});
+      const upd = () => { l.colis = Math.max(0,num(inp.value)); l.qte = l.colis*l.parColis; info.textContent = (l.parColis>1 ? "colis de "+l.parColis+" = "+fmt(l.qte)+" u" : "unités") + (l.prixAchat? " · "+eur(l.qte*l.prixAchat):""); majTotal(); };
+      inp.oninput = upd;
+      box.append(el("div",{class:"item",style:"margin-bottom:6px"},
+        el("div",{class:"info"}, el("div",{class:"name",style:"white-space:normal"}, l.nom), info),
+        el("button",{class:"step",onclick:()=>{inp.value=Math.max(0,num(inp.value)-1);upd();}},"−"), inp,
+        el("button",{class:"step",onclick:()=>{inp.value=num(inp.value)+1;upd();}},"+"),
+        el("button",{class:"btn sm",style:"background:none",title:"Retirer",onclick:()=>{lignes.splice(i,1);draw();}},"✕")));
+      upd();
+    });
+    majPick(); majTotal();
+  }
+  function majTotal(){ const t=lignes.reduce((a,l)=>a+num(l.qte)*num(l.prixAchat),0); total.textContent = lignes.length+" produit"+(lignes.length>1?"s":"")+(t?" · coût estimé "+eur(t):""); }
+  const save = async () => {
+    const ls = lignes.filter(l=>l.qte>0);
+    if (!ls.length) { toast("Ajoute au moins un produit"); return; }
+    const body = {fournisseur:four.value.trim()||"Sans fournisseur", date:date.value||today(), note:note.value.trim(), lignes:ls, maj:Date.now()};
+    closeSheet();
+    try {
+      if (cid) await chain("c/"+cid, ()=>retry(()=>S.db.doc("commandes/"+cid).update(body)));
+      else await retry(()=>S.db.collection("commandes").add({...body, statut:"en_cours", cree:Date.now(), par:S.uid||"", parNom:S.nom||""}));
+      toast(cid?"Commande modifiée":"Commande enregistrée");
+    } catch(e){ handleWriteError(e); }
+  };
+  draw();
+  openSheet(el("div",{}, el("datalist",{id:"fourns2"}, fournisseurs().map(x=>el("option",{value:x}))),
+    el("h3",{}, cid?"Modifier la commande":"Nouvelle commande"),
+    el("div",{class:"row"}, el("div",{style:"flex:1.5"}, el("label",{class:"f"},"Fournisseur"), four), el("div",{style:"flex:1"}, el("label",{class:"f"},"Date"), date)),
+    el("label",{class:"f"},"Produits (quantité en colis)"), box, pick, total,
+    el("label",{class:"f"},"Note"), note,
+    el("button",{class:"btn pri block",style:"margin-top:14px",onclick:save}, cid?"Enregistrer":"Enregistrer la commande"),
+    el("button",{class:"btn block",style:"margin-top:8px;background:none",onclick:closeSheet},"Annuler")));
+}
+function sheetReception(cid){
+  const c = S.commandes.find(x=>x.id===cid); if (!c) return;
+  const lignes = (c.lignes||[]).map(l=>({...l, recu:num(l.recu)}));
+  const inputs = lignes.map(l => el("input",{class:"inv-in",type:"number",inputmode:"numeric",min:"0",value:Math.max(0,num(l.qte)-l.recu)}));
+  const go = async (btn) => {
+    const recs = lignes.map((l,i)=>({l, n:Math.max(0,num(inputs[i].value))})).filter(r=>r.n>0);
+    if (!recs.length) { toast("Rien à réceptionner"); return; }
+    btn.disabled = true; btn.textContent = "Mise à jour du stock…";
+    for (const r of recs) {
+      if (!produit(r.l.produitId)) continue;
+      await appliquer(r.l.produitId, "entree", r.n, {note:"Commande "+c.fournisseur, commandeId:cid});
+      r.l.recu += r.n;
+    }
+    const complet = lignes.every(l=>l.recu >= num(l.qte));
+    try { await chain("c/"+cid, ()=>retry(()=>S.db.doc("commandes/"+cid).update({lignes, statut:complet?"recue":"partielle", recueLe:Date.now(), recuPar:S.nom||"", maj:Date.now()}))); }
+    catch(e){ handleWriteError(e); }
+    closeSheet(); toast(complet?"Commande reçue, stock mis à jour":"Réception partielle enregistrée");
+  };
+  const btn = el("button",{class:"btn pri block",style:"margin-top:14px"},"Valider la réception");
+  btn.onclick = () => go(btn);
+  openSheet(el("div",{},
+    el("h3",{},"Réception – "+c.fournisseur),
+    el("p",{class:"muted",style:"margin:4px 0 8px"},"Vérifie ce qui est réellement livré (en unités) et corrige si besoin. Le stock sera augmenté d'autant."),
+    lignes.map((l,i)=>el("div",{class:"item",style:"margin-bottom:6px"},
+      el("div",{class:"info"}, el("div",{class:"name",style:"white-space:normal"}, l.nom),
+        el("div",{class:"sub"}, "Commandé : "+ligneTxt(l) + (l.recu?" · déjà reçu "+fmt(l.recu)+" u":""))),
+      el("button",{class:"btn sm",onclick:()=>{inputs[i].value=0;}},"0"), inputs[i])),
+    btn,
+    el("button",{class:"btn block",style:"margin-top:8px;background:none",onclick:closeSheet},"Fermer")));
+}
+async function copierCommande(c){
+  const txt = "Commande Buvette VIP – "+dateFr(c.date)+"\n"+(c.fournisseur?"Fournisseur : "+c.fournisseur+"\n":"")+"\n"+(c.lignes||[]).map(l=>"- "+l.nom+" : "+ligneTxt(l)).join("\n")+(c.note?"\n\n"+c.note:"");
+  try { await navigator.clipboard.writeText(txt); toast("Commande copiée (à coller dans un SMS ou mail)"); } catch { toast("Copie impossible ici"); }
+}
+async function annulerCommande(c){
+  try { await chain("c/"+c.id, ()=>retry(()=>S.db.doc("commandes/"+c.id).update({statut:"annulee", maj:Date.now()}))); toast("Commande annulée"); } catch(e){ handleWriteError(e); }
+}
+function carteCommande(c){
+  const ouverte = c.statut==="en_cours" || c.statut==="partielle";
+  const nbU = (c.lignes||[]).reduce((t,l)=>t+num(l.qte),0);
+  const cout = coutCmd(c);
+  const tagStyle = c.statut==="recue" ? "background:var(--ok);color:#06210f" : c.statut==="annulee" ? "background:var(--chip);color:var(--muted)" : "background:var(--accent);color:var(--accent-ink)";
+  return el("div",{class:"card",style:c.statut==="annulee"?"opacity:.55":""},
+    el("div",{class:"row",style:"justify-content:space-between;align-items:flex-start"},
+      el("div",{}, el("div",{style:"font-weight:600;font-size:16px"}, c.fournisseur||"Sans fournisseur"),
+        el("div",{class:"sub muted",style:"font-size:12px"}, "Commandée le "+dateFr(c.date) + (c.recueLe?" · reçue le "+new Date(c.recueLe).toLocaleDateString("fr-FR"):"") + (c.parNom?" · "+c.parNom:""))),
+      el("span",{class:"tag",style:tagStyle+";white-space:nowrap"}, STATUTS[c.statut]||c.statut)),
+    el("div",{style:"margin:8px 0;font-size:13px"}, (c.lignes||[]).map(l=>el("div",{class:"row",style:"justify-content:space-between;padding:2px 0"},
+      el("span",{}, l.nom), el("span",{class:"muted",style:"white-space:nowrap"}, c.statut==="partielle" ? "reçu "+fmt(num(l.recu))+" / "+fmt(num(l.qte))+" u" : ligneTxt(l))))),
+    el("div",{class:"muted",style:"font-size:12px;margin-bottom:8px"}, fmt(nbU)+" unités"+(cout?" · coût estimé "+eur(cout):"")+(c.note?" · "+c.note:"")),
+    ouverte ? el("div",{class:"row",style:"flex-wrap:wrap"},
+      el("button",{class:"btn sm pri",onclick:()=>sheetReception(c.id)},"Réceptionner"),
+      c.statut==="en_cours" ? el("button",{class:"btn sm",onclick:()=>sheetCommande(c.id)},"Modifier") : null,
+      el("button",{class:"btn sm",onclick:()=>copierCommande(c)},"Copier"),
+      el("button",{class:"btn sm",style:"background:none",onclick:e=>confirmBtn(e.currentTarget,()=>annulerCommande(c))}, c.statut==="partielle"?"Clôturer":"Annuler"))
+    : el("div",{class:"row"}, el("button",{class:"btn sm",onclick:()=>copierCommande(c)},"Copier"),
+        el("button",{class:"btn sm",onclick:()=>sheetCommande(null,(c.lignes||[]).map(l=>({...l,recu:0})))},"Recommander pareil")));
+}
+function vCommandes(){
+  const alertes = actifs().filter(etat);
+  const depuisAlertes = () => {
+    const ls = alertes.map(p=>{ const pc=Math.max(1,num(p.parColis)||1), co=suggestion(p); return {produitId:p.id, nom:p.nom, parColis:pc, colis:co, qte:co*pc, recu:0, prixAchat:num(p.prixAchat)}; });
+    sheetCommande(null, ls);
+  };
+  const ouvertes = S.commandes.filter(c=>c.statut==="en_cours"||c.statut==="partielle");
+  const autres = S.commandes.filter(c=>!(c.statut==="en_cours"||c.statut==="partielle")).slice(0,20);
+  const out = el("div",{},
+    el("div",{class:"card"},
+      el("h2",{},"Commandes"),
+      el("p",{class:"muted",style:"margin:0 0 10px;font-size:13px"},"Prépare ta commande, puis à la livraison touche « Réceptionner » : le stock est augmenté automatiquement."),
+      el("div",{class:"row",style:"flex-wrap:wrap"},
+        el("button",{class:"btn pri",onclick:()=>sheetCommande(null)},"+ Nouvelle commande"),
+        alertes.length ? el("button",{class:"btn",onclick:depuisAlertes},"Commander les alertes ("+alertes.length+")") : null)));
+  if (!S.loadedCmd) { out.append(el("div",{class:"empty"},"Chargement…")); return out; }
+  out.append(el("div",{class:"cat"},"À réceptionner ("+ouvertes.length+")"));
+  if (!ouvertes.length) out.append(el("div",{class:"empty",style:"padding:14px"},"Aucune commande en attente."));
+  ouvertes.forEach(c=>out.append(carteCommande(c)));
+  if (autres.length) { out.append(el("div",{class:"cat"},"Historique")); autres.forEach(c=>out.append(carteCommande(c))); }
+  return out;
+}
+
 // ---------- render ----------
 function renderMatchBar(){
   const sel = $("#matchSel");
@@ -612,7 +780,7 @@ function render(){
   const v = $("#view");
   const scroll = window.scrollY;
   const focusId = document.activeElement?.type==="search";
-  const views = {stock:vStock, inventaire:vInventaire, bilan:vBilan, historique:vHistorique, reglages:vReglages};
+  const views = {stock:vStock, inventaire:vInventaire, bilan:vBilan, historique:vHistorique, commandes:vCommandes, reglages:vReglages};
   v.replaceChildren(views[S.tab]());
   if (focusId) { const s=v.querySelector("input[type=search]"); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length);} }
   window.scrollTo(0, scroll);
@@ -628,7 +796,7 @@ function scheduleRender(){
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => {
   S.tab = b.dataset.tab; if (S.tab==="bilan") bilanSel = null; try{ history.replaceState(null,"","#"+S.tab); }catch{} render(); window.scrollTo(0,0);
 }));
-window.addEventListener("hashchange", () => { if (S.invMode) return; const h=location.hash.slice(1); if (h && h!==S.tab && ["stock","inventaire","bilan","historique","reglages"].includes(h)) { S.tab=h; render(); } });
+window.addEventListener("hashchange", () => { if (S.invMode) return; const h=location.hash.slice(1); if (h && h!==S.tab && ["stock","inventaire","bilan","historique","commandes","reglages"].includes(h)) { S.tab=h; render(); } });
 
 // ---------- data ----------
 let unsubMatch = null;
@@ -684,7 +852,7 @@ async function init(){
   if (!role) { ecranBloque("Ce QR code n'est plus valide. Demande le nouveau QR code au responsable de la buvette."); try{localStorage.removeItem("buvette_cle");}catch{} return; }
   S.role = role;
   if (role === "inventaire") { S.invMode = true; S.tab = "inventaire"; document.body.classList.add("invmode"); $("#subtitle").textContent = "Accès inventaire"; document.title = "Buvette VIP – Inventaire"; }
-  else { const h = location.hash.slice(1); if (["stock","inventaire","bilan","historique","reglages"].includes(h)) S.tab = h; }
+  else { const h = location.hash.slice(1); if (["stock","inventaire","bilan","historique","commandes","reglages"].includes(h)) S.tab = h; }
   render();
   if (!S.nom) demanderNom();
   const timer = setTimeout(()=>status("Le stock ne répond pas encore… vérifie ta connexion.","err"), 10000);
@@ -697,6 +865,10 @@ async function init(){
   }, e => { clearTimeout(timer); status("Impossible de lire le stock ("+e.code+").","err"); });
   db.collection("matchs").onSnapshot(snap => { S.matchs = snap.docs.map(d=>({id:d.id, ...d.data()})); scheduleRender(); }, e=>console.error(e));
   db.doc("config/app").onSnapshot(snap => { S.config = snap.exists ? {...snap.data()} : {}; scheduleRender(); }, e=>console.error(e));
+  if (role === "gestion") db.collection("commandes").orderBy("cree","desc").limit(100).onSnapshot(snap => {
+    S.commandes = snap.docs.map(d=>({id:d.id, ...d.data()})); S.loadedCmd = true;
+    if (S.tab==="commandes") scheduleRender();
+  }, e => { console.error(e); S.loadedCmd = true; if (e.code==="permission-denied") status("Commandes : mets à jour les règles Firebase (voir le fichier envoyé).","err"); });
   db.collection("mouvements").orderBy("date","desc").limit(500).onSnapshot(snap => {
     S.mouvements = snap.docs.map(d=>({id:d.id, ...d.data()}));
     if (S.tab==="historique" || S.tab==="bilan") scheduleRender();
